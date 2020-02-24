@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>Document</title>
+
+    <script>
+        var lockReconnect = false;//避免重复连接
+        var wsUrl = "ws://192.168.20.200:10123/browser".replace("http", "ws");
+        var ws;
+        createWebSocket();
+        function createWebSocket() {
+            try {
+                ws = new WebSocket(wsUrl);
+                init();
+            } catch (e) {
+                alert("it error");
+                console.log('catch' + e);
+                reconnect(wsUrl);
+            }
+        }
+
+        function init() {
+
+            ws.onclose = function () {
+                console.log('链接关闭');
+                reconnect(wsUrl);
+            };
+            ws.onerror = function () {
+                console.log('发生异常了');
+                reconnect(wsUrl);
+            };
+            ws.onopen = function () {
+                console.log('建立连接');
+                ws.send(JSON.stringify({ "doWhat": "getLink" }));
+                //心跳检测重置
+                heartCheck.start();
+            };
+            ws.onmessage = function (event) {
+                setMessageInnerHTML(event.data);
+                console.log(event);
+                console.log('接收到消息' + JSON.stringify(event));
+                heartCheck.start();
+                //拿到任何消息都说明当前连接是正常的
+            }
+        }
+
+        var lockReconnect = false;//避免重复连接
+        function reconnect(url) {
+            if (lockReconnect) {
+                return;
+            };
+            lockReconnect = true;
+            //没连接上会一直重连，设置延迟避免请求过多
+            setTimeout(function () {
+                createWebSocket(url);
+                lockReconnect = false;
+            }, 40000);
+        }
+        //心跳检测
+        var heartCheck = {
+            timeout: 10000,
+            timeoutObj: null,
+            serverTimeoutObj: null,
+            start: function () {
+                console.log('start');
+                var self = this;
+                this.timeoutObj && clearTimeout(this.timeoutObj);
+                this.serverTimeoutObj && clearTimeout(this.serverTimeoutObj);
+                this.timeoutObj = setTimeout(function () {
+                    //这里发送一个心跳，后端收到后，返回一个心跳消息，
+                    //onmessage拿到返回的心跳就说明连接正常
+                    var message = {
+                            "type":"heartbeat"
+                        };
+                    ws.send(JSON.stringify(message))
+                    // ws.send(JSON.stringify({ "heartbeat": "1" }));
+                    self.serverTimeoutObj = setTimeout(function () {
+                        // console.log(111);
+                        console.log(ws);
+                        ws.close();
+                        // createWebSocket();
+                    }, self.timeout);
+                }, this.timeout)
+            }
+        }
+
+        //将消息显示在网页上
+        function setMessageInnerHTML(innerHTML) {
+            document.getElementById('message').innerHTML += innerHTML + '<br/>';
+        }
+
+        // var socket;  
+        // if(typeof(WebSocket) == "undefined") {  
+        //     console.log("您的浏览器不支持WebSocket");  
+        // }else{  
+        //     console.log("您的浏览器支持WebSocket");  
+        //         //实现化WebSocket对象，指定要连接的服务器地址与端口  建立连接  
+        //         //等同于socket = new WebSocket("ws://localhost:8083/checkcentersys/websocket/20");  
+        //         socket = new WebSocket("ws://192.168.200.5:9527/websocket/websocket".replace("http","ws"));  
+        //         //打开事件  
+        //         socket.onopen = function() {  
+        //             console.log("Socket 已打开");  
+        //             //socket.send("这是来自客户端的消息" + location.href + new Date());  
+        //         };  
+        //         //获得消息事件  
+        //         socket.onmessage = function(msg) {  
+        //             console.log(msg.data);  
+        //             //发现消息进入    开始处理前端触发逻辑
+        //         };  
+        //         //关闭事件  
+        //         socket.onclose = function() {  
+        //             console.log("Socket已关闭");  
+        //         };  
+        //         //发生了错误事件  
+        //         socket.onerror = function() {  
+        //             alert("Socket发生了错误");  
+        //             //此时可以尝试刷新页面
+        //         }  
+        //         //离开页面时，关闭socket
+        //         //jquery1.8中已经被废弃，3.0中已经移除
+        //         // $(window).unload(function(){  
+        //         //     socket.close();  
+        //         //});  
+        // }
+    </script>
+
+</head>
+
+<body>
+    <div id="message"></div>
+
+</body>
+
+</html>
